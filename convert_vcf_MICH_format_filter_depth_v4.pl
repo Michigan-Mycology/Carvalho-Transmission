@@ -23,8 +23,6 @@ print "numstrains=$numstrains\n";
 # Cols is the number of columns before the real data that are variable between vcf files
 $cols = 9;
 
-# Removed mindepth and just used lowdepth
-
 # maxdepth is the maximum fold over average depth for each strain to remove.
 $maxdepth = 4;
 # lowdepth is the same as max except on the lower end
@@ -51,11 +49,9 @@ while (<INPUTFILE>)
 {
 	unless ($_ =~ /##/)
 	{
-# This is the stuff that prints the strain names
 		if ($_ =~ /CHROM/)
 		{
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols-1] =~ s/\s+$//;
 			for ($a=$cols;$a<($numstrains+$cols);$a++)
 			{	
@@ -64,9 +60,7 @@ while (<INPUTFILE>)
 		}	
 		else
 		{
-#			print "\nthis is the main area for getting the depths
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols] =~ s/\s+$//;
 # Look to see SNPs that were filtered by GATK VariantFiltration
 # Or if the second allele has more than 1 variant in which case there is a ','
@@ -108,26 +102,18 @@ while (<INPUTFILE>)
 		if ($_ =~ /CHROM/)
 		{
 			@genos = split(/\t/, $_);
-#	print "@genos\n";
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols] =~ s/\s+$//;
 			for ($a=$cols;$a<($numstrains+$cols);$a++)
 			{	
 				print OUTPUTALLELES "$genos[$a]\t"
 			}
-#		print "\n";
 		print OUTPUTALLELES "\n";
 		}	
 		else
 		{
-#			print "\nthis is the main printing area";
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols] =~ s/\s+$//;
-# This prints the Contig number and location if the SNP passed
-#			$genos[0] =~ s/bden_JEL423_supercont1.//g;
 			$genos[0] =~ s/Supercontig_1.//g;
-#			$genos[0] =~ s/bden_JEL423_MT/mt68/g;
 			if ($genos[4] =~ /\,/) {print FILTERFILE "Multi-allele\n";}
 # Look to see SNPs that were filtered by GATK VariantFiltration
 # Or if the second allele has more than 1 variant in which case there is a ','
@@ -140,7 +126,6 @@ while (<INPUTFILE>)
 				for ($b=$cols;$b<($numstrains+$cols);$b++)
 				{
 					@indgenos = split(/:/, $genos[$b]);
-#					print "b=$b";
 					if ($indgenos[0] =~ /\./)
 					{
 # Genotype uncertain
