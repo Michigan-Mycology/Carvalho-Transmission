@@ -260,26 +260,19 @@ print "\nLD for marker # $snp";
 			{$comparison='w';} else {$comparison='b';}
 # this subroutine call gets all of the values needed for the calculation of the deltaab
 			($nind,$fA,$fB,$n1,$n2,$n4,$n5) = calculatens ($snp, $secondsnp);
-#			if ($nind==0) {for ($z=0;$z<$numstrains;$z++){print $dataset[$z][$snp];} print " "; for ($z=0;$z<$numstrains;$z++){print $dataset[$z][$secondsnp];} $topo=<STDIN>;}
-# This makes a lot of sense. Don't calculate the values when there are less than 4 points of data. This will save a lot of disk space and hopefully smooth out data driven by few points.
-			unless ($nind<4)
 			{$nab = (2*$n1 + $n2 + $n4 + (0.5*$n5));
 			$deltaab = abs( (1/$nind)*$nab - (2*$fA*$fB));
 			print OUTPUTFILELD "$contig[$snp]\t$position[$snp]\t$contig[$secondsnp]\t$position[$secondsnp]\t$comparison\t";
-#			print "1stcontig=$contig[$snp]\t$position[$snp]\t2ndcontig=$contig[$secondsnp]\t$position[$secondsnp]$comparison\t";
 			if ($comparison =~ /w/)
 			{
 				$distance=$position[$secondsnp]-$position[$snp]; 
 				print OUTPUTFILELD "$distance"; 
-#				print "$distance";
 			} 
 			else 
 			{
 				print OUTPUTFILELD "\t"; 
-#				print "\t";
 			}
 			printf OUTPUTFILELD "\t%.3f\n", $deltaab;
-#			print "\t$deltaab";
 			}
 		}
 		$secondsnp++;
@@ -598,15 +591,12 @@ while ($workcontig < $numcontigs)
 	{
 		for ($a=0;$a<$numstrains;$a++)
 		{
-#			for ($b=0;$b<$numsnps;$b++)
 			for ($b=$firstcontigSNP{$workcontig};$b<$lastcontigSNP{$workcontig};$b++)
 			{
 				if (($position[$b]>= $firstbp) && ($position[$b] < $lastbp) && ($contig[$b] == $workcontig))
 				{
-#					print "\nposition[$b] = $position[$b] contig[$b]=$contig[$b] dataset[$a][$b] = $dataset[$a][$b]";
 					if ($dataset[$a][$b] =~ /K|M|R|S|W|Y/)
 					{$sumhets[$a]++;}
-#					print "\nsumhets[$a]=$sumhets[$a]";
 				}
 			}
 		}
@@ -640,6 +630,7 @@ while ($workcontig < $numcontigs)
 
 # This subroutine determines the last bp of each contig which is used for sliding window analysis
 # Also it calculates the range in the dataset that each contig covers. This speeds up the sliding window analysis.
+
 sub getmaxlengthcontig {
 
 @contigsize = ((0) x $numcontigs);
@@ -662,6 +653,7 @@ while ($worksnp <= $numsnps)
 }
 
 # This subroutine calculates each site where all strains are of one homozygous type except one strain that is uniquely heterozygous
+
 sub rununiques {
 
 print UNIQUEMUTS "Strain\tContig\tPosition\tDataset\tGenotype\n";
@@ -685,6 +677,7 @@ for ($a=0;$a<$numsnps;$a++)
 	}
 }
 }
+
 # This subroutine identifies recent mutations as those with single heterozygous positions that lie within a window of size $recentwindow
 sub findrecentmuts {
 my $firstbp = 0;
@@ -701,15 +694,12 @@ while ($workcontig < $numcontigs)
 	{
 		for ($a=0;$a<$numstrains;$a++)
 		{
-#			for ($b=0;$b<$numsnps;$b++)
 			for ($b=$firstcontigSNP{$workcontig};$b<$lastcontigSNP{$workcontig};$b++)
 			{
 				if (($position[$b]>= $firstbp) && ($position[$b] < $lastbp) && ($contig[$b] == $workcontig))
 				{
-#					print "\nposition[$b] = $position[$b] contig[$b]=$contig[$b] dataset[$a][$b] = $dataset[$a][$b]";
 					if ($dataset[$a][$b] =~ /K|M|R|S|W|Y/)
 					{$sumhets[$a]++;}
-#					print "\nsumhets[$a]=$sumhets[$a]";
 				}
 			}
 		}
