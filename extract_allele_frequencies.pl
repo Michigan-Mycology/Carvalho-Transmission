@@ -33,7 +33,7 @@ $GQmin = 50;
 my $depths;
 @depths = (0) x ($numstrains+$cols);
 
-# Array of olling sum of positions with depths
+# Array of rolling sum of positions with depths
 
 my $sumpos;
 @sumpos = (0) x ($numstrains+$cols);
@@ -44,11 +44,10 @@ while (<INPUTFILE>)
 {
 	unless ($_ =~ /##/)
 	{
-# This is the stuff that prints the strain names
+# This prints the strain names
 		if ($_ =~ /CHROM/)
 		{
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols-1] =~ s/\s+$//;
 			for ($a=$cols;$a<($numstrains+$cols);$a++)
 			{	
@@ -57,9 +56,7 @@ while (<INPUTFILE>)
 		}	
 		else
 		{
-#			print "\nthis is the main area for getting the depths
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols] =~ s/\s+$//;
 # Look to see SNPs that were filtered by GATK VariantFiltration
 # Or if the second allele has more than 1 variant in which case there is a ','
@@ -102,7 +99,6 @@ while (<INPUTFILE>)
 		if ($_ =~ /CHROM/)
 		{
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols-1] =~ s/\s+$//;
 			for ($a=$cols;$a<($numstrains+$cols);$a++)
 			{	
@@ -113,14 +109,10 @@ while (<INPUTFILE>)
 		}	
 		else
 		{
-#			print "\nthis is the main printing area";
 			@genos = split(/\t/, $_);
-# This following line removes the whitespace at the end of the line.
 			$genos[$numstrains+$cols] =~ s/\s+$//;
 # This prints the Contig number and location if the SNP passed
-#			$genos[0] =~ s/bden_JEL423_supercont1.//g;
 			$genos[0] =~ s/Supercontig_1.//g;
-#			$genos[0] =~ s/bden_JEL423_MT/mt68/g;
 # Look to see SNPs that were filtered by GATK VariantFiltration
 # Or if the second allele has more than 1 variant in which case there is a ','
 			unless (($genos[6] =~ /$filter/)|($genos[4] =~ /\,/))
@@ -142,7 +134,6 @@ while (<INPUTFILE>)
 						$temp1 = $maxdepth * $meandepth[$b];
 						$temp2 = $meandepth[$b]/$lowdepth;
 						print "depth=$indgenos[2]\t qual=$indgenos[3] maxdepth*meandepth[$names[$b]]=$temp1 meandepth[$names[$b]]/lowdepth=$temp2 GQmin=$GQmin\n";
-#			print "failed QC or depth \n";
 						print OUTPUTALLELES "NA";
 					}
 					elsif (($indgenos[0] eq '1|1') | ($indgenos[2] =~ /1\/1/))
