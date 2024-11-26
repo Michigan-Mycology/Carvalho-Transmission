@@ -29,17 +29,13 @@ $strainname[$numstrains] =~ s/\s+$//;
 while (<INPUTFILE>)
 {
 	@info = split(/\t/, $_);
-#	print @info;
 	$info[$numstrains] =~ s/\s+$//;
 	$data[$a][0] = $info[0];
 	for ($b=1; $b<$numstrains+1; $b++)
 	{
-#		print "info[$b+2] = $info[$b+2]\n";
 		$data[$a][$b]=$info[$b];
-#		print "data[$a][$b] = $data[$a][$b]\n";
 	}
 	$a++;
-#	print "\n";
 }
 
 $numbases=$a;
@@ -50,6 +46,5 @@ for ($c=1; $c<$numstrains+1; $c++)
 	for ($d=0; $d<$numbases; $d++)
 	{
 		print OUTPUTFILE "$data[$d][0]\t$strainname[$c]\t$data[$d][$c]\n";
-#		print "$data[$d][0]\t$strainname[$c]\t$data[$d][$c]\n";
 	}
 }
