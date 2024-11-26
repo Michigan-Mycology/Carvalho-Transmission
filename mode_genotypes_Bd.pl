@@ -26,7 +26,6 @@ while (<INPUTFILE>)
 	$nextline = $_;
 	chomp ($nextline);
 	@genos = split(/\t/, $nextline);
-# This following line removes the whitespace at the end of the line.
 	$genos[$numstrains+$cols] =~ s/\s+$//;
 	$position[$snp] = $genos[2];
 	for ($a=$cols;$a<$numstrains+$cols;$a++)
