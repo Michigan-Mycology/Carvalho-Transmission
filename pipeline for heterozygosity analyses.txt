@@ -3,6 +3,7 @@
 # 1. Variant filtration
 # 2. Reformat data
 # 3. Calculate heterozygosity stats
+# 4. Plot genome-scale genotypes
 
 ##############################
 ### 1. VARIANT FILTRATION ####
@@ -287,9 +288,9 @@ figure <- ggarrange(Pl3, Pl17, Pl5, Pl22, Pl8, Pl23, Pl10, Pl24, Pl14, Pl25, Pl1
 data<-read.table("Tc_het.txt",header=TRUE)
 barplot(data$Hets, names.arg=data$Strain)
 
-###############################
-# PLOT GENOME SCALE GENOTYPES #
-###############################
+##################################
+# 4. PLOT GENOME SCALE GENOTYPES #
+##################################
 
 # Simple format file has genotypes written like A, K, W, G, etc.
 # Developed a script to replace each genotype, using A, B, C (A=homozygous genotype present in JEL274, B= heterozygous, C= genotype not present in JEL274)
