@@ -1,0 +1,349 @@
+# This pipeline covers variant filtration, data reformat, and analysis of heterozygosity
+# Steps
+# 1. Variant filtration
+# 2. Reformat data
+# 3. Calculate heterozygosity stats
+
+##############################
+### 1. VARIANT FILTRATION ####
+##############################
+
+# For filtering steps below, we first plot the data such as QUAL, AC, AN, QD, MQ, BaseQRankSum, ClippingRankSum
+# DP, MQRankSum, ReadPosRankSum, SOR
+
+# Use script convert_vcf_to_SNP_qual_data.pl
+perl convert_vcf_to_SNP_qual_data.pl BdGR.2022.snps.only.unfiltered.vcf statistics.BdGR.2022.snps.only.unfiltered.txt
+
+# Then plot data in R
+data<-read.table("statistics.BdGR.2022.snps.only.unfiltered.txt", header=TRUE)
+
+# 634,422 SNPs
+
+x<-log(data[,3],10)
+pdf("QUAL.pdf", height = 8, width = 10)
+hist(x, breaks=100, xlab="log10(QUAL)", main="QUAL")
+dev.off()
+# Suggests < 200 Qual cutoff is ok
+
+# There are 27 strains
+hist(data[,4], breaks=100, xlab="Allele Count of ALT alleles", main="AC")
+
+hist(data[,5], breaks=40, xlab="Total number of called alleles", main="AN")
+
+hist(data[,6], main="BaseQRankSum", breaks=100,  xlab="BaseQRankSum")
+
+hist(data[,8], main="FS (Fisher Strand)", xlab="FS",breaks=2000, xlim=c(0,50))
+
+hist(data[,9], main="DP (Depth)", xlab="DP", breaks=300, xlim=c(0,20000))
+
+# plots log(QUAL) versus DP
+plot (x, data[,9])
+
+hist(data[,10], main="MQ (RMS Mapping Quality)", xlab="MQ", breaks=5000, xlim=c(55,62))
+
+# Not used
+hist(data[,11], main="MQRankSum",  xlab="MQRankSum", breaks=500, xlim=c(-1,1))
+
+hist(data[,12], main="QD (Quality by Depth)", breaks=100, xlab="QD")
+
+plot (data[,12],data[,8])
+
+hist(data[,13], main="ReadPosRankSum", xlab="ReadPosRankSum", breaks=100)
+
+# Plot log qual by ReadPosRankSum
+plot (x,data[,13])
+
+hist(data[,14], main="SOR (Symmetric Odds Ratio", xlab="SOR", breaks=100)
+
+# Average depth per SNP
+mean(data[,9])
+3070.428
+# That means the average depth per library = 106X
+
+length (which(data$QUAL < 100))
+
+# Final filtration scheme
+
+java -jar $PICARDLIB/picard.jar CreateSequenceDictionary R=Bd_JEL423.fasta O=Bd_JEL423.dict
+gatk VariantFiltration -R /scratch/tyjames_root/tyjames/tyjames/Bd/Tami/Bd_JEL423.fasta -V BdGR.2022.snps.only.unfiltered.vcf  -O BdGR.2022.snps.only.qualfiltered.v2.vcf \
+    -filter "QD < 5.0" --filter-name "QD5" \
+    -filter "QUAL < 500.0" --filter-name "QUAL500" \
+    -filter "SOR > 3.0" --filter-name "SOR3" \
+    -filter "FS > 20.0" --filter-name "FS20" \
+    -filter "MQ < 50.0" --filter-name "MQ50" \
+    -filter "DP < 1000" --filter-name "DP-low" \
+    -filter "DP > 5000" --filter-name "DP-high" \
+    -filter "AN < 40" --filter-name "AN"
+ 
+# Check the counts of filters
+# QD5: 140930
+# QUAL500: 159445
+# SOR3: 67424
+# FS: 97101
+# DP-low: 39237
+# DP-high: 31970
+# AN: 19290
+
+# Next we should remove the SNPs that failed qual_filtered
+
+gatk SelectVariants \
+   -R /scratch/tyjames_root/tyjames/tyjames/Bd/Tami/Bd_JEL423.fasta \
+   -V BdGR.2022.snps.only.qualfiltered.v2.vcf \
+   -O BdGR.2022.snps.only.qualfiltered.pruned.v2.vcf \
+   --exclude-filtered
+
+# Reduced down to 274,507 SNPs from 634,422 SNPs
+
+##############################
+###### 2. REFORMAT DATA ######
+##############################
+
+# 1. First convert vcf to MICH format data
+
+# During this we will filter data on depth for each strain
+# Depth no greater than 4X mean or less than /4 of mean
+# We also filter at Genotype Quality GQ less than 50
+# First will need to go through and calculate means
+
+perl convert_vcf_MICH_format_filter_depth_v4.pl BdGR.2022.snps.only.qualfiltered.pruned.v2.vcf BdGR.2022.snps.only.qualfiltered.pruned.MICH.v4.txt filter_file.txt 27
+
+# Number of too deep genotypes: 732
+# Number of too low genotypes: 105543
+# Number of low quality genotypes: 280,689
+
+# Number of loci 269,022
+# This mostly would have removed loci with more than 2 alleles
+
+# 2. Remove monomorphic or with more than 1/4 of strains with missing
+
+perl remove_monomorphic.pl BdGR.2022.snps.only.qualfiltered.pruned.MICH.v4.txt BdGR.2022.snps.only.qualfiltered.pruned.no_missing.MICH.v4.txt
+
+# Removing monomorphic removes: 576
+
+# Removing missing (90% rate) removes: 61609
+
+# 207,317 SNPs remaining
+
+# Manually added on number strains and contigs and snps lines
+# 27 strains
+# 207318 loci
+# 67 contigs
+
+# 3. Need to remove the Ref
+
+perl remove_ref.pl
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.MICH.v4.txt
+
+# Also need to make the strain name row without Contig Position for formatting output
+
+
+##############################
+### 3. CALC HETEROZY STATS ###
+##############################
+
+perl ld_and_het_anal.pl 
+
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.MICH.het_cumul.v4.txt
+
+# Delete out chromosomes 18 and higher
+
+# Plot skyline plots in R
+
+matrix<-read.table("BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.MICH.het_cumul.v4.txt",header=TRUE)
+# Adds a column for plotting black and grey
+matrix$plotcol <- with(matrix, ifelse(((Contig %% 2) == 0), 1, 0))
+matrix$plotcol = as.factor(matrix$plotcol)
+color_easy = c("black", "grey")[matrix$plotcol]
+par(mar=c(0.5,0.5,0.5,0.5))
+layout(mat = matrix(c(1:16), nrow = 8, ncol = 2))
+plot(matrix$CumBase, matrix$JEL274, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), lwd=1, col=color_easy, axes=FALSE, frame.plot=TRUE)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(6.5e+05,0.007, 'JEL274')
+plot(matrix$CumBase, matrix$PENS.9.2, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(8e+05,0.007, 'PENS.9.2')
+plot(matrix$CumBase, matrix$RC4, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(3e+05,0.007, 'RC4')
+plot(matrix$CumBase, matrix$TC1, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(3e+05,0.007, 'TC1')
+plot(matrix$CumBase, matrix$TC2, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(3e+05,0.007, 'TC2')
+plot(matrix$CumBase, matrix$TC3, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(3e+05,0.007, 'TC3')
+plot(matrix$CumBase, matrix$TC4, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, las=1, cex.axis=0.7)
+text(3e+05,0.007, 'TC4')
+plot(matrix$CumBase, matrix$TC5, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1)
+Axis(side=2, las=1, cex.axis=0.7)
+text(3e+05,0.007, 'TC5')
+
+plot(matrix$CumBase, matrix$SA.EC5, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(5.5e+05,0.007, 'SA.EC5')
+plot(matrix$CumBase, matrix$SAe6, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(5.5e+05,0.007, 'SAe6')
+plot(matrix$CumBase, matrix$CLFT067, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(7.5e+05,0.007, 'CLFT067')
+plot(matrix$CumBase, matrix$CLFT061, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(7.5e+05,0.007, 'CLFT061')
+plot(matrix$CumBase, matrix$KB108, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(5e+05,0.007, 'KB108')
+plot(matrix$CumBase, matrix$X739, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(5e+05,0.007, 'X0739')
+plot(matrix$CumBase, matrix$KBO_327, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1, labels=FALSE)
+Axis(side=2, labels=FALSE)
+text(8e+05,0.007, 'KBO_327')
+plot(matrix$CumBase, matrix$KRBOOR_323, type="h", xlim = c(0.0,16.5e+06), ylim = c(0.0,0.008), axes=FALSE, frame.plot=TRUE, lwd=1, col=color_easy)
+Axis(side=1)
+Axis(side=2, labels=FALSE)
+text(13e+05,0.007, 'KBOOR_323')
+
+#end
+
+# To look at subsets, example
+
+chr1 <-subset(matrix, matrix$Contig == 1)
+par(mfrow=c(5,1))
+par(mar=c(1,1,1,1))
+plot(chr1$CumBase, chr1$TC1, type="l", ylim = c(0.0,0.005), xlab='',  ylab='', lwd=1)
+plot(chr1$CumBase, chr1$TC2, type="l", ylim = c(0.0,0.005), xlab='',  ylab='', lwd=1)
+plot(chr1$CumBase, chr1$TC3, type="l", ylim = c(0.0,0.005),  xlab='',  ylab='', lwd=1)
+plot(chr1$CumBase, chr1$TC4, type="l", ylim = c(0.0,0.005),  xlab='',  ylab='', lwd=1)
+plot(chr1$CumBase, chr1$TC5, type="l", ylim = c(0.0,0.005),  xlab='',  ylab='', lwd=1)
+
+
+# Now plotting of allele frequency histograms
+# Have script extract_allele_frequencies.pl that will extract out allele frequencies of reference allele.
+
+perl extract_allele_frequencies.pl BdGR.2022.snps.only.qualfiltered.pruned.v2.vcf BdGR.2022.snps.only.qualfiltered.pruned.v2.allele_freqs.txt 27
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.v2.allele_freqs.txt
+
+# produce plots in R
+
+data<-read.table("BdGR.2022.snps.only.qualfiltered.pruned.v2.allele_freqs.txt",header=TRUE)
+data$contig<-as.factor(data$Contig)
+
+lib(ggplot2)
+data_bigs<-subset(data, Contig<10)
+# layout(mat = matrix(c(1:16), nrow = 8, ncol = 2))
+# ggplot(data_bigs,aes(x=UKTVB))+geom_histogram()+facet_grid(~Contig) + theme_minimal() 
+Pl <- ggplot(data_bigs,aes(x=X0739))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank()) + scale_x_continuous(limits = c( 0.15,0.85 )) 
+Pl2 <- ggplot(data_bigs,aes(x=X23_OZ))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank()) + scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl3 <- ggplot(data_bigs,aes(x=CLFT001))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank()) + scale_x_continuous(limits = c( 0,1 ))
+Pl4 <- ggplot(data_bigs,aes(x=CLFT061))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank()) + scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl5 <- ggplot(data_bigs,aes(x=CLFT067))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl6 <- ggplot(data_bigs,aes(x=CM21))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl7 <- ggplot(data_bigs,aes(x=JEL261))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl8 <- ggplot(data_bigs,aes(x=JEL274))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl9 <- ggplot(data_bigs,aes(x=KB108))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl10 <- ggplot(data_bigs,aes(x=KBO_317))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl11 <- ggplot(data_bigs,aes(x=KBO_319))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl12 <- ggplot(data_bigs,aes(x=KBO_327))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl13 <- ggplot(data_bigs,aes(x=KRBOOR_323))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl14 <- ggplot(data_bigs,aes(x=MC58))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl15 <- ggplot(data_bigs,aes(x=PENS.9.2))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl16 <- ggplot(data_bigs,aes(x=RC4))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl17 <- ggplot(data_bigs,aes(x=SA.EC5))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl18 <- ggplot(data_bigs,aes(x=SA.EC7))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl19 <- ggplot(data_bigs,aes(x=SA.KN3))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl20 <- ggplot(data_bigs,aes(x=SA.KN5))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl21 <- ggplot(data_bigs,aes(x=SAe6))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.15,0.85 ))
+Pl22 <- ggplot(data_bigs,aes(x=TC1))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.25,0.75 ))
+Pl23 <- ggplot(data_bigs,aes(x=TC2))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.25,0.75 ))
+Pl24 <- ggplot(data_bigs,aes(x=TC3))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.25,0.75 ))
+Pl25 <- ggplot(data_bigs,aes(x=TC4))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.25,0.75 ))
+Pl26 <- ggplot(data_bigs,aes(x=TC5))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.25,0.75 ))
+Pl27 <- ggplot(data_bigs,aes(x=UKTVB))+geom_histogram()+facet_grid(~Contig) + theme_classic(base_size= 4) + theme(axis.title.y=element_blank(), axis.title.x=element_blank(), strip.background = element_blank(), strip.text.x = element_blank())+ scale_x_continuous(limits = c( 0.25,0.75 ))
+
+
+library(ggpubr)
+figure <- ggarrange(Pl3, Pl17, Pl5, Pl22, Pl8, Pl23, Pl10, Pl24, Pl14, Pl25, Pl16, Pl26, labels = c("CLFT001", "SA.EC5", "CLFT067", "TC1", "JEL274", "TC2", "KBO_317", "TC3", "MC58", "TC4", "RC4", "TC5"),nrow = 6, ncol=2,hjust=-0.8)
+
+# Barchart of heterozygosity
+data<-read.table("Tc_het.txt",header=TRUE)
+barplot(data$Hets, names.arg=data$Strain)
+
+###############################
+# PLOT GENOME SCALE GENOTYPES #
+###############################
+
+# Simple format file has genotypes written like A, K, W, G, etc.
+# Developed a script to replace each genotype, using A, B, C (A=homozygous genotype present in JEL274, B= heterozygous, C= genotype not present in JEL274)
+
+perl convert_simple_to_flat_Bd.pl BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.MICH.v4.txt BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.flattened.MICH.v4.txt
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.flattened.MICH.v4.txt
+
+# Also make a data set without the non-GPL isolates
+# First manually remove taxa from data set
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.MICH_GPL.v4.txt
+
+# Then filter out the monomorphic and too much missing lines
+# 207318 loci
+perl remove_monomorphic_v2.pl BdGR.2022.snps.only.qualfiltered.pruned.no_missing.no_ref.MICH_GPL.v4.txt BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.MICH_GPL.v4.txt
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.MICH_GPL.v4
+
+# Then flatten the file changing location of JEL274
+perl convert_simple_to_flat_Bd.pl BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.MICH_GPL.v4.txt BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.MICH_GPL.v4.txt
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.MICH_GPL.v4.txt
+
+# Now, we need to mode the counts in windows of size 20,000 to get a large-scale view of what's going on.
+# In order to be printed, the base needs to be the majority of bases, i.e., >50%
+
+perl mode_genotypes_Bd.pl BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.MICH_GPL.v4.txt BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.mode.MICH_GPL.v4.50K.txt
+
+# Then make plots in R
+# First convert to long format
+perl convert_simple_to_long_Bd.pl BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.mode.MICH_GPL.v4.txt BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.mode.long.MICH_GPL.v4.txt 13
+>>>>>BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.mode.long.MICH_GPL.v4.txt
+
+# Then print to stripchart in R
+data<-read.table("BdGR.2022.snps.only.qualfiltered.pruned.no_missingv2.no_ref.flattened.mode.long.MICH_GPL.v4.txt",header=TRUE)
+#pdf("Bd_het_birdseye_GPL.pdf", height = 8, width = 12)
+stripchart( data$Position ~ Strain, data=data, method="stack", subset = Genotype == "B", col="grey", pch=124, xlab="Position (bp)", cex=0.7, yaxt="n")
+labels<-c("TC5", "TC4", "TC3", "TC2", "TC1", "JEL261", "RC4", "CM21", "UKTVB", "SA-EC7", "PENS-9.2", "23_OZ", "JEL274")
+axis(2,las=2, labels=labels, at= seq(1,13,by=1),cex.axis=0.6)
+stripchart( data$Position ~ Strain, data=data, method="stack", subset = Genotype == "A", col="red", add=T, pch=124, cex=0.7)
+stripchart( data$Position ~ Strain, data=data, method="stack", subset = Genotype == "C", col="blue", add=T, pch=124, cex=0.7)
+abline (v=0, lty=2)
+abline (v=4440149, lty=2)
+abline (v=6753271, lty=2)
+abline (v=8582679, lty=2)
+abline (v=10385995, lty=2)
+abline (v=12093246, lty=2)
+abline (v=13638747, lty=2)
+abline (v=15037601, lty=2)
+abline (v=16107448, lty=2)
+abline (v=17164911, lty=2)
+abline (v=18177216, lty=2)
+abline (v=19156585, lty=2)
+abline (v=20093692, lty=2)
+abline (v=20991953, lty=2)
+abline (v=21849108, lty=2)
+abline (v=22406710, lty=2)
+abline (v=22904964, lty=2)
+abline (v=23148390, lty=2)
+#dev.off()
